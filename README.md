@@ -12,4 +12,4 @@ The firewall is being developed in an environment with the next specs:
 
   - **Board**: BeagleBone Black
   - **Linux distribution**: Debian 11
-  - **Kernel version**: 5.10.182
+  - **Kernel version**: 5.10.168
