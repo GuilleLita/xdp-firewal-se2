@@ -12,6 +12,7 @@
 #include <bpf/bpf_endian.h>
 
 #define VLAN_MAX_DEPTH 10
+#define MAX_RULES 10
 
 
 
@@ -27,7 +28,7 @@ struct {
         __uint(type, BPF_MAP_TYPE_ARRAY);
         __type(key, __u32);
         __type(value, struct rule);
-        __uint(max_entries, 1000);
+        __uint(max_entries, MAX_RULES);
 }rules_map SEC(".maps");
 
 struct hdr_cursor {
@@ -120,42 +121,18 @@ static __always_inline int parse_udphdr(struct hdr_cursor *nh,
     return udp->source; 
 }
 
-/* parse_icmphdr(struct hdr_cursor *nh,
-                    void *data_end,
-                    struct icmphdr **icmphdr)
-{
-     struct icmphdr *icmp = nh ->pos;
-    int hdrsize = sizeof(*icmp);
-
-    if (nh->pos + hdrsize  > data_end)
-        return -1;
-
-    nh->pos += hdrsize;
-    *icmphdr = icmp;
-
-    return 
-    
-} */
-
-
-//TODO: bpf_for_each_map_elem MIRAR ESTO
 
 SEC("xdp")
 int firewall(struct xdp_md *ctx){
  
    struct datarec *rec;
-   struct rule *rule;
+   
     __u32 key = 0;
     rec = bpf_map_lookup_elem(&xdp_counter, &key);
-    rule = bpf_map_lookup_elem(&rules_map, &key);
 
 
     if (!rec)
     {
-        return XDP_ABORTED;
-    }
-
-    if(!rule){
         return XDP_ABORTED;
     }
 
@@ -197,24 +174,48 @@ int firewall(struct xdp_md *ctx){
             return XDP_PASS;
         }
         else{
+            bpf_printk("PRE_RULE: src_ip %d, protocol %d", iphdr->addrs.saddr, iphdr->protocol);
 
-            if(rule->src_ip != 0 && iphdr->addrs.saddr != rule->src_ip){
-                return XDP_PASS;
+            for(int i = 0; i<MAX_RULES; i++){
+                __u32 key = i;
+
+                struct rule *rule = bpf_map_lookup_elem(&rules_map, &key);
+
+                if(!rule){
+                    break;
+                }
+
+                if(!rule->active){
+                    continue;
+                }
+
+                bpf_printk("RULE %d: src_ip %d, protocol %d", key, rule->src_ip, rule->protocol);
+
+                if(rule->src_ip != 0 && iphdr->addrs.saddr != rule->src_ip){
+                    continue;
+                }
+
+                if(rule->dst_ip != 0 && iphdr->addrs.daddr != rule->dst_ip){
+                    continue;
+                }
+
+                if(rule->protocol != 0 && iphdr->protocol != rule->protocol){
+                    continue;
+                }
+
+                //If all parameters are 0 the rule is matched. 
+
+                bpf_printk("RULE %d MATCHED!!!", key);
+
+                //Matched rule. do action
+                bpf_spin_lock(&rec->lock);
+                rec->blockedcount++;
+                bpf_spin_unlock(&rec->lock);
+                return rule->action;
+
             }
-
-            if(rule->dst_ip != 0 && iphdr->addrs.daddr != rule->dst_ip){
-                return XDP_PASS;
-            }
-
-            if(rule->protocol != 0 && iphdr->protocol != rule->protocol){
-                return XDP_PASS;
-            }
-
-            //Matched rule. do action
-            bpf_spin_lock(&rec->lock);
-            rec->blockedcount++;
-            bpf_spin_unlock(&rec->lock);
-            return rule->action;
+            
+            return XDP_PASS;
 
         }
         

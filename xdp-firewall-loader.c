@@ -97,10 +97,11 @@ int main(int argc, char *argv[])
         return rules_map_fd;
     }
 
-    //TODO: PONER LAS REGLAS AQUI, en el mapa que he creado.
+    
 
     //Regla que dropea los paquetes ICMP de una IP
     struct rule rule1;
+    rule1.active = 1;
     rule1.action = XDP_DROP;
     const char* ip = "192.168.1.109";//IP de mi ordenador
     rule1.src_ip = inet_addr(ip);
@@ -108,9 +109,25 @@ int main(int argc, char *argv[])
     printf("src_ip = %d\n", rule1.src_ip);
     rule1.dst_ip = 0;
 
+    //OTRA Regla que dropea los paquetes ICMP de una IP
+    struct rule rule2;
+    rule2.active = 1;
+    rule2.action = XDP_DROP;
+    ip = "192.168.1.40";//IP de otro dispositivo
+    rule2.src_ip = inet_addr(ip);
+    rule2.protocol = IPPROTO_ICMP;
+    printf("src_ip 2= %d\n", rule2.src_ip);
+    rule2.dst_ip = 0;
+
     
     __u32 key = 0;
     struct rule value = rule1;
+    if (bpf_map_update_elem(rules_map_fd, &key, &value, BPF_ANY) != 0) {
+        fprintf(stderr, "Error, failed to set map rule value\n");
+        return 1;
+    }
+    key = 1;
+    value = rule2;
     if (bpf_map_update_elem(rules_map_fd, &key, &value, BPF_ANY) != 0) {
         fprintf(stderr, "Error, failed to set map rule value\n");
         return 1;
