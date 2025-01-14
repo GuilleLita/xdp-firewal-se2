@@ -61,6 +61,11 @@ int main(int argc, char *argv[])
     char *filename = "xdp-firewall.bpf.o";
     char *progname = "firewall";
 
+    const char *pin_dir =  "/sys/fs/bpf/eth0";
+    const char *map1_dir =  "/sys/fs/bpf/eth0/xdp_counter";
+    const char *map2_dir =  "/sys/fs/bpf/eth0/rules_map";
+
+
     DECLARE_LIBBPF_OPTS(bpf_object_open_opts, opts);
     DECLARE_LIBXDP_OPTS(xdp_program_opts, xdp_opts, 0);
     xdp_opts.open_filename = filename;
@@ -133,7 +138,37 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    poll_stats(map_fd,map_fd_time, 2);
+
+    if (access(map1_dir, F_OK ) != -1 ) {
+			printf(" - Unpinning (remove) prev maps in %s/\n",
+			       pin_dir);
+
+		/* Basically calls unlink(3) on map_filename */
+		err = bpf_object__unpin_maps(bpf_obj, pin_dir);
+		if (err) {
+			fprintf(stderr, "ERR: UNpinning maps in %s\n", pin_dir);
+			return 1;
+		}
+	}
+
+    if (access(map2_dir, F_OK ) != -1 ) {
+			printf(" - Unpinning (remove) prev maps in %s/\n",
+			       pin_dir);
+
+		/* Basically calls unlink(3) on map_filename */
+		err = bpf_object__unpin_maps(bpf_obj, pin_dir);
+		if (err) {
+			fprintf(stderr, "ERR: UNpinning maps in %s\n", pin_dir);
+			return 1;
+		}
+	}
+
+   /* This will pin all maps in our bpf_object */
+	err = bpf_object__pin_maps(bpf_obj, pin_dir);
+	if (err)
+		return 1;
+
+    //poll_stats(map_fd,map_fd_time, 2);
 
     return 0;
 }

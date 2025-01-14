@@ -21,7 +21,7 @@ struct {
         __uint(type, BPF_MAP_TYPE_ARRAY);
         __type(key, __u32);
         __type(value, struct datarec);
-        __uint(max_entries, 1000);
+        __uint(max_entries, 1);
 }xdp_counter SEC(".maps");
 
 struct {
